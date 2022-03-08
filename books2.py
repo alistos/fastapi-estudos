@@ -1,7 +1,13 @@
-from fastapi import FastAPI
+from msilib.schema import Error
+from fastapi import FastAPI, HTTPException, Request, status, Form, Header
 from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import Optional
+from starlette.responses import JSONResponse
+
+class NumeroNegativoException(Exception):
+    def __init__(self, livrosParaRetornar):
+        self.livrosParaRetornar = livrosParaRetornar
 
 app = FastAPI()
 
@@ -24,10 +30,35 @@ class Livro(BaseModel):
             }
         }
 
+class LivroSemNota(BaseModel):
+    id: UUID
+    titulo: str = Field(min_length=1)
+    autor: str = Field(min_length=1, max_length=100)
+    descricao: Optional[str] = Field(title="Descrição do livro",
+     max_length=100,
+     min_length=1)
+
 livros = []
+
+@app.exception_handler(NumeroNegativoException)
+async def numeroNegativoExceptionHandler(request: Request,
+    exception: NumeroNegativoException):
+    return JSONResponse(status_code=418,
+    content={"message": f'Ei, por que você quer {exception.livrosParaRetornar} livros? Você precisa ler mais!'})
+
+@app.post("/livros/login")
+async def livroLogin(username: str = Form(...), password: str = Form(...)):
+    return {"username": username, "oassword": password}
+
+@app.get("/header")
+async def lerHeader(randomHeader: Optional[str] = Header(None)):
+    return {"Random-Header": randomHeader}
 
 @app.get("/")
 async def lerTodosLivros(livrosParaRetornar: Optional[int] = None):
+    if livrosParaRetornar and livrosParaRetornar < 0:
+        raise NumeroNegativoException(livrosParaRetornar=livrosParaRetornar)
+
     if len(livros) < 1:
         criarLivrosSemApi()
     if livrosParaRetornar and len(livros) >= livrosParaRetornar > 0:
@@ -44,8 +75,16 @@ async def lerLivro(livroId:UUID):
     for x in livros:
         if x.id == livroId:
             return x
+    raise raiseLivroNaoEncontradoException()
 
-@app.post("/")
+@app.get("/livro/nota/{livroId}", response_model=LivroSemNota)
+async def lerLivroSemNota(livroId:UUID):
+    for x in livros:
+        if x.id == livroId:
+            return x
+    raise raiseLivroNaoEncontradoException()
+
+@app.post("/", status_code=status.HTTP_201_CREATED)
 async def criarLivro(livro: Livro):
     livros.append(livro)
     return livro
@@ -58,6 +97,7 @@ async def atualizarLivro(livroId: UUID, livro: Livro):
         if x.id == livroId:
             livros[cont - 1] = livro
             return livros[cont-1]
+    raise raiseLivroNaoEncontradoException()
 
 @app.delete("/{livroId}")
 async def deletarLivro(livroId: UUID):
@@ -67,6 +107,7 @@ async def deletarLivro(livroId: UUID):
         if x.id == livroId:
             del livros[cont - 1]
             return f'ID:{livroId} deletado'
+    raise raiseLivroNaoEncontradoException()
 
 def criarLivrosSemApi():
     livro1 = Livro(id="e1163899-b103-4239-92eb-dddb8ebc19da",
@@ -93,3 +134,8 @@ def criarLivrosSemApi():
     livros.append(livro2)
     livros.append(livro3)
     livros.append(livro4)
+
+def raiseLivroNaoEncontradoException():
+    return HTTPException(status_code=404,
+    detail="Livro não encontrado",
+    headers={"X-Header-Error":"UUID nãon está presente na base"})
