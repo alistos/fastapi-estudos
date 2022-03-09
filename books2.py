@@ -48,7 +48,7 @@ async def numeroNegativoExceptionHandler(request: Request,
 
 @app.post("/livros/login")
 async def livroLogin(username: str = Form(...), password: str = Form(...)):
-    return {"username": username, "oassword": password}
+    return {"username": username, "password": password}
 
 @app.get("/header")
 async def lerHeader(randomHeader: Optional[str] = Header(None)):
