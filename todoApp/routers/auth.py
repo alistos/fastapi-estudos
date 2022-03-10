@@ -1,5 +1,8 @@
+import sys
+sys.path.append("..")
+
 from http.client import HTTPException
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, APIRouter
 from pydantic import BaseModel
 from typing import Optional
 import models
@@ -26,7 +29,11 @@ models.Base.metadata.create_all(bind=engine)
 
 oauth2Bearer = OAuth2PasswordBearer(tokenUrl="token")
 
-app = FastAPI()
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+    responses={401: {"user": "Não autorizado"}}
+)
 
 def get_db():
     try:
@@ -73,7 +80,7 @@ async def get_usuario_atual(token: str = Depends(oauth2Bearer)):
         raise getUsuarioException()
 
 
-@app.post("/criar/usuario")
+@router.post("/criar/usuario")
 async def criarNovoUsuario(criarUsuario: CriarUsuario, db: Session = Depends(get_db)):
     criarUsuarioModel = models.Usuarios()
     criarUsuarioModel.email = criarUsuario.email
@@ -89,7 +96,7 @@ async def criarNovoUsuario(criarUsuario: CriarUsuario, db: Session = Depends(get
     db.add(criarUsuarioModel)
     db.commit()
 
-@app.post("/token")
+@router.post("/token")
 async def loginParaTokenAcesso(dadosForm: OAuth2PasswordRequestForm = Depends(),db: Session = Depends(get_db)):
 
     usuario = autenticarUsuario(dadosForm.username, dadosForm.password, db)
